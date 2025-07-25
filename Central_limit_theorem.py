@@ -4,22 +4,25 @@ import random
 # Parámetros de la simulación
 CANVAS_WIDTH = 600
 CANVAS_HEIGHT = 600
-BALL_RADIUS = 4
-UPDATE_DELAY = 200  # en milisegundos
+BALL_RADIUS = 3
+UPDATE_DELAY = 10  # en milisegundos
 PIN_Y_COORDINATE = 100
-N_BINS = 25
+N_BINS = 20
 BIN_LINE_WIDTH = 2
 BIN_LINE_HEIGHT = 250
 BIN_WIDTH = (CANVAS_WIDTH - (N_BINS-1)*BIN_LINE_WIDTH) // N_BINS
-PIN_RADIUS = 8
-PIN_SPACE = BIN_WIDTH + BIN_LINE_WIDTH
+PIN_RADIUS = 12
+PIN_SPACE = 24
 PIN_ROWS = 5
+PIN_COLUMNS = 25
 TOP_HEIGHT = PIN_Y_COORDINATE - PIN_RADIUS
-X_STEP_SIZE = PIN_SPACE
-Y_STEP_SIZE = PIN_SPACE
-N_BALLS = 100
+X_STEP_SIZE = 1
+Y_STEP_SIZE = 7
+N_BALLS = 500
 BALLS_ADDED_PER_TICK = 1
+TICKS_TO_FALL = 5
 INITIAL_BALL_SPREAD = 20 #Pixels
+X_BALLS_INIT = 12*PIN_SPACE
 
 # Check for intersection
 def check_collision(ball, bbox_list, canvas):
@@ -27,13 +30,15 @@ def check_collision(ball, bbox_list, canvas):
     bbox_ball = canvas.bbox(ball)
     for item in bbox_list:
         bbox_from_list = canvas.bbox(item)
-        test = test or not (
+        test  = not (
             bbox_ball[2] < bbox_from_list[0] or   # bbox1 right < bbox2 left
             bbox_ball[0] > bbox_from_list[2] or   # bbox1 left > bbox2 right
             bbox_ball[3] < bbox_from_list[1] or   # bbox1 bottom < bbox2 top
             bbox_ball[1] > bbox_from_list[3]      # bbox1 top > bbox2 bottom
         )
-    return test
+        if test:
+            return bbox_from_list
+    return False
         
 
 
@@ -57,15 +62,16 @@ class board_app:
         # Pines
         self.pines = []
         for j in range(PIN_ROWS):
-            for i in range(1, N_BINS):
+            for i in range(1, PIN_COLUMNS):
                 x_coordinate = i*PIN_SPACE
                 y_coordinate = PIN_Y_COORDINATE + j*2*PIN_SPACE
                 if i % 2 == 0:
-                    y_coordinate = y_coordinate + PIN_SPACE
                     self.pines.append(self.canvas.create_oval(x_coordinate - PIN_RADIUS, y_coordinate - PIN_RADIUS, 
                                         x_coordinate + PIN_RADIUS, y_coordinate + PIN_RADIUS, 
                                         fill="green"))
                 else:
+                    
+                    y_coordinate = y_coordinate + PIN_SPACE
                     self.pines.append(self.canvas.create_oval(x_coordinate - PIN_RADIUS, y_coordinate - PIN_RADIUS, 
                                         x_coordinate + PIN_RADIUS, y_coordinate + PIN_RADIUS, 
                                         fill="green"))
@@ -82,7 +88,7 @@ class board_app:
         self.extra_button.grid(row=0, column=1, padx=5)
 
         # Posición inicial en el centro
-        self.x = CANVAS_WIDTH // 2
+        self.x = X_BALLS_INIT
         self.y = BALL_RADIUS + 20
 
         # Dibujamos las pelotas
@@ -99,6 +105,9 @@ class board_app:
         # Controla el descenso de las pelotitas de a poco
         self.fall_index = 1
 
+        # Contrala cada cuantos ticks de reloja lanza pelotitas
+        self.fall_sequence = 0
+
         # Control de animación
         self.running = True
         self.after_id = None
@@ -107,36 +116,63 @@ class board_app:
     def update_position(self):
 
         for ball in self.balls[:self.fall_index]:
-            present_x = self.canvas.bbox(ball)[0] + BALL_RADIUS
-            present_y = self.canvas.bbox(ball)[1] + BALL_RADIUS
-
+            #Hay una diferencia de un pixel de menos entre la coordenada obtenida con canvas.bbox y la seteada con canvas.coords 
+            present_x = self.canvas.bbox(ball)[0] + BALL_RADIUS + 1
+            present_y = self.canvas.bbox(ball)[1] + BALL_RADIUS + 1
+            
             dy = Y_STEP_SIZE
+            # Siempre desciende
             new_y = present_y + dy
+            # Incremento de x = 0 por defecto, la pelotita sigue en línea recta hacia abajo a menos que se produzca una colisión
+            new_x = present_x
 
             # Evitar que salga del canvas
             if BALL_RADIUS <= new_y <= CANVAS_HEIGHT - BALL_RADIUS:
+                #Por defecto hay solo un incremento dy
                 present_y = new_y
-                # Incremento de x por defecto, la pelotita sigue en línea recta hacia abajo a menos que se produzca una colisión
-                dx = 0
-                if check_collision(ball, self.pines, self.canvas):
-                    dx = random.choice([-X_STEP_SIZE, X_STEP_SIZE])
-                if check_collision(ball, self.container_bars, self.canvas):
-                    dx = BALL_RADIUS
+                colided = check_collision(ball, self.pines, self.canvas)
+                if colided:
+                    direction = random.choice(['left', 'right'])
+                    if direction == 'left':
+                        new_x = colided[0] - PIN_RADIUS
+                    elif direction == 'right':
+                        new_x = colided[2] + PIN_RADIUS
+                    # El avance en y es el mínimo necesario para no colicionar con el pin contiguo al colisionado original
+                    present_y = colided[3] - dy
 
-                new_x = present_x + dx
+                colided = check_collision(ball, self.container_bars, self.canvas)        
+                if colided:
+                    if self.canvas.bbox(ball)[2] > colided[0]:
+                        dx = random.choice([2*BALL_RADIUS, 5*BALL_RADIUS])
+                        new_x = colided[0] - dx
+                    elif self.canvas.bbox(ball)[0] < colided[2]:
+                        dx = random.choice([2*BALL_RADIUS, 5*BALL_RADIUS])
+                        new_x = colided[2] + dx
+
+
+                # Se mueve en x solo si no ha llegado al límite del canvas
                 if BALL_RADIUS <= new_x <= CANVAS_WIDTH - BALL_RADIUS:
                     present_x = new_x
             
-                # Mover la pelotita si no ha colisionado con otra pelotita.
-                if present_y < CANVAS_HEIGHT - BIN_LINE_HEIGHT or check_collision(ball, self.balls[: self.fall_index], self.canvas):
+                
+                
+                other_balls = self.balls[: self.fall_index]
+                other_balls.pop(other_balls.index(ball))
+                
+                colided  = check_collision(ball, other_balls, self.canvas)
+                
+                # Mover la pelotita si no ha colisionado con otra pelotita o si se encuentra en la parte superior o en los pines
+                if present_y < CANVAS_HEIGHT - BIN_LINE_HEIGHT or not colided:
                     self.canvas.coords(
                         ball,
                         present_x - BALL_RADIUS, present_y - BALL_RADIUS,
                         present_x + BALL_RADIUS, present_y + BALL_RADIUS
                     )
 
-
-        self.fall_index = self.fall_index + BALLS_ADDED_PER_TICK
+        self.fall_sequence += 1
+        if self.fall_sequence >= TICKS_TO_FALL:
+            self.fall_sequence = 0
+            self.fall_index = self.fall_index + BALLS_ADDED_PER_TICK
 
         # Llamar de nuevo a esta función luego de un retardo
         # Guardar ID del próximo evento programado
@@ -161,7 +197,7 @@ class board_app:
             self.root.after_cancel(self.after_id)
         
         # Resetear posición
-        self.x = CANVAS_WIDTH // 2
+        self.x = X_BALLS_INIT
         self.y = BALL_RADIUS
 
          # Borramos las pelotas
