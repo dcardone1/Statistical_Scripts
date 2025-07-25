@@ -5,7 +5,7 @@ import random
 CANVAS_WIDTH = 600
 CANVAS_HEIGHT = 600
 BALL_RADIUS = 4
-UPDATE_DELAY = 80  # en milisegundos
+UPDATE_DELAY = 200  # en milisegundos
 PIN_Y_COORDINATE = 100
 N_BINS = 25
 BIN_LINE_WIDTH = 2
@@ -15,7 +15,11 @@ PIN_RADIUS = 8
 PIN_SPACE = BIN_WIDTH + BIN_LINE_WIDTH
 PIN_ROWS = 5
 TOP_HEIGHT = PIN_Y_COORDINATE - PIN_RADIUS
-STEP_SIZE = PIN_SPACE
+X_STEP_SIZE = PIN_SPACE
+Y_STEP_SIZE = PIN_SPACE
+N_BALLS = 100
+BALLS_ADDED_PER_TICK = 1
+INITIAL_BALL_SPREAD = 20 #Pixels
 
 # Check for intersection
 def check_collision(ball, bbox_list, canvas):
@@ -66,20 +70,34 @@ class board_app:
                                         x_coordinate + PIN_RADIUS, y_coordinate + PIN_RADIUS, 
                                         fill="green"))
                     
-        # Botón de reinicio
-        self.restart_button = tk.Button(root, text="Reiniciar", command=self.restart_simulation)
-        self.restart_button.pack(pady=10)
+        self.button_frame = tk.Frame(root)
+        self.button_frame.pack(pady=10)
+
+        # Botón Reiniciar
+        self.restart_button = tk.Button(self.button_frame, text="Reiniciar", command=self.restart_simulation)
+        self.restart_button.grid(row=0, column=0, padx=5)
+
+        # Segundo botón (sin función por ahora)
+        self.extra_button = tk.Button(self.button_frame, text="Start/Stop", command=self.stop_simulation)
+        self.extra_button.grid(row=0, column=1, padx=5)
 
         # Posición inicial en el centro
         self.x = CANVAS_WIDTH // 2
-        self.y = BALL_RADIUS
+        self.y = BALL_RADIUS + 20
 
-        # Dibujamos la pelota
-        self.ball = self.canvas.create_oval(
-            self.x - BALL_RADIUS, self.y - BALL_RADIUS,
-            self.x + BALL_RADIUS, self.y + BALL_RADIUS,
-            fill="white"
-        )
+        # Dibujamos las pelotas
+        self.balls = []
+        for i in range(N_BALLS):
+            x = self.x + random.choice(range(-INITIAL_BALL_SPREAD,INITIAL_BALL_SPREAD))
+            y = self.y + random.choice(range(-INITIAL_BALL_SPREAD,INITIAL_BALL_SPREAD))
+            self.balls.append(self.canvas.create_oval(
+                x - BALL_RADIUS, y - BALL_RADIUS,
+                x + BALL_RADIUS, y + BALL_RADIUS,
+                fill="white"
+            ))
+
+        # Controla el descenso de las pelotitas de a poco
+        self.fall_index = 1
 
         # Control de animación
         self.running = True
@@ -87,32 +105,55 @@ class board_app:
         self.update_position()
 
     def update_position(self):
-        
-        dy = STEP_SIZE
-        new_y = self.y + dy
 
-        # Evitar que salga del canvas
-        if BALL_RADIUS <= new_y <= CANVAS_HEIGHT - BALL_RADIUS:
-            self.y = new_y
-            # Agregar comentario
-            if check_collision(self.ball, self.pines, self.canvas):
-                dx = random.choice([-STEP_SIZE, STEP_SIZE])
-            else:
+        for ball in self.balls[:self.fall_index]:
+            present_x = self.canvas.bbox(ball)[0] + BALL_RADIUS
+            present_y = self.canvas.bbox(ball)[1] + BALL_RADIUS
+
+            dy = Y_STEP_SIZE
+            new_y = present_y + dy
+
+            # Evitar que salga del canvas
+            if BALL_RADIUS <= new_y <= CANVAS_HEIGHT - BALL_RADIUS:
+                present_y = new_y
+                # Incremento de x por defecto, la pelotita sigue en línea recta hacia abajo a menos que se produzca una colisión
                 dx = 0
-            new_x = self.x + dx
-            if BALL_RADIUS <= new_x <= CANVAS_WIDTH - BALL_RADIUS:
-                self.x = new_x
+                if check_collision(ball, self.pines, self.canvas):
+                    dx = random.choice([-X_STEP_SIZE, X_STEP_SIZE])
+                if check_collision(ball, self.container_bars, self.canvas):
+                    dx = BALL_RADIUS
 
-        # Mover la pelotita
-        self.canvas.coords(
-            self.ball,
-            self.x - BALL_RADIUS, self.y - BALL_RADIUS,
-            self.x + BALL_RADIUS, self.y + BALL_RADIUS
-        )
+                new_x = present_x + dx
+                if BALL_RADIUS <= new_x <= CANVAS_WIDTH - BALL_RADIUS:
+                    present_x = new_x
+            
+                # Mover la pelotita si no ha colisionado con otra pelotita.
+                if present_y < CANVAS_HEIGHT - BIN_LINE_HEIGHT or check_collision(ball, self.balls[: self.fall_index], self.canvas):
+                    self.canvas.coords(
+                        ball,
+                        present_x - BALL_RADIUS, present_y - BALL_RADIUS,
+                        present_x + BALL_RADIUS, present_y + BALL_RADIUS
+                    )
+
+
+        self.fall_index = self.fall_index + BALLS_ADDED_PER_TICK
 
         # Llamar de nuevo a esta función luego de un retardo
         # Guardar ID del próximo evento programado
         self.after_id = self.root.after(UPDATE_DELAY, self.update_position)
+
+
+    def stop_simulation(self):
+        # Detener animación actual
+        if self.running:
+            if self.after_id:
+                self.root.after_cancel(self.after_id)
+            self.running = False
+        else:
+            self.running = True
+            self.update_position()
+
+        
     
     def restart_simulation(self):
         # Detener animación actual
@@ -122,11 +163,22 @@ class board_app:
         # Resetear posición
         self.x = CANVAS_WIDTH // 2
         self.y = BALL_RADIUS
-        self.canvas.coords(
-            self.ball,
-            self.x - BALL_RADIUS, self.y - BALL_RADIUS,
-            self.x + BALL_RADIUS, self.y + BALL_RADIUS
-        )
+
+         # Borramos las pelotas
+        for ball in self.balls:
+            self.canvas.delete(ball)
+
+         # Dibujamos las pelotas
+        self.balls = []
+        for i in range(N_BALLS):
+            x = self.x + random.choice(range(-INITIAL_BALL_SPREAD, INITIAL_BALL_SPREAD))
+            y = self.y + random.choice(range(-INITIAL_BALL_SPREAD, INITIAL_BALL_SPREAD))
+            self.balls.append(self.canvas.create_oval(
+                x - BALL_RADIUS, y - BALL_RADIUS,
+                x + BALL_RADIUS, y + BALL_RADIUS,
+                fill="white"
+            ))
+        self.fall_index = 1
 
         # Reiniciar
         self.running = True
