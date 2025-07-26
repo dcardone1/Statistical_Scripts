@@ -85,9 +85,17 @@ class board_app:
         self.restart_button = tk.Button(self.button_frame, text="Reiniciar", command=self.restart_simulation)
         self.restart_button.grid(row=0, column=0, padx=5)
 
-        # Segundo botón (sin función por ahora)
+        # Botón start stop
         self.extra_button = tk.Button(self.button_frame, text="Start/Stop", command=self.stop_simulation)
         self.extra_button.grid(row=0, column=1, padx=5)
+
+        # Botón para acelerar
+        self.speed_button = tk.Button(self.button_frame, text="Faster", command=self.faster)
+        self.speed_button.grid(row=0, column=2, padx=5)
+
+        # Botón para desacelerar
+        self.speed_button = tk.Button(self.button_frame, text="Slower", command=self.slower)
+        self.speed_button.grid(row=0, column=3, padx=5)
 
         # Posición inicial en el centro
         self.x = X_BALLS_INIT
@@ -109,6 +117,9 @@ class board_app:
 
         # Contrala cada cuantos ticks de reloja lanza pelotitas
         self.fall_sequence = 0
+
+        # Delay inicial
+        self.delay = UPDATE_DELAY
 
         # Control de animación
         self.running = True
@@ -166,10 +177,7 @@ class board_app:
                         X - 10*BALL_RADIUS, Y - h - 2*BALL_RADIUS,
                         X - 8*BALL_RADIUS, Y - h
                     )
-        self.balls_in_bins[nbin].append(ball)
-
-    
-
+        self.balls_in_bins[nbin].append(ball)    
 
     def update_position(self):
 
@@ -232,7 +240,7 @@ class board_app:
 
         # Llamar de nuevo a esta función luego de un retardo
         # Guardar ID del próximo evento programado
-        self.after_id = self.root.after(UPDATE_DELAY, self.update_position)
+        self.after_id = self.root.after(self.delay, self.update_position)
 
 
     def stop_simulation(self):
@@ -256,7 +264,10 @@ class board_app:
         self.x = X_BALLS_INIT
         self.y = BALL_RADIUS
 
-         # Borramos las pelotas
+        # Reinicia el delay
+        self.delay = UPDATE_DELAY
+
+        # Borramos las pelotas
         for ball in self.balls:
             self.canvas.delete(ball)
 
@@ -283,6 +294,13 @@ class board_app:
         self.running = True
         self.update_position()
 
+    def faster(self):
+        if self.delay > 1:
+            self.delay = self.delay // 2
+        
+    def slower(self):
+        if self.delay < 2000:
+            self.delay = self.delay*2
 
 # Iniciar la aplicación
 if __name__ == "__main__":
