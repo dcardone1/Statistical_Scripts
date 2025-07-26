@@ -7,21 +7,21 @@ CANVAS_HEIGHT = 600
 BALL_RADIUS = 3
 UPDATE_DELAY = 50  # en milisegundos
 PIN_Y_COORDINATE = 100
-N_BINS = 20
-BIN_LINE_WIDTH = 2
+BIN_LINE_WIDTH = 2 # Multiplos de 2
 BIN_LINE_HEIGHT = 250
-BIN_WIDTH = (CANVAS_WIDTH - (N_BINS-1)*BIN_LINE_WIDTH) // N_BINS
 PIN_RADIUS = 12
 PIN_SPACE = 24
 PIN_ROWS = 5
 PIN_COLUMNS = 25
+N_BINS = PIN_COLUMNS
+#BIN_WIDTH = (CANVAS_WIDTH - (N_BINS-1)*BIN_LINE_WIDTH) // N_BINS
 TOP_HEIGHT = PIN_Y_COORDINATE - PIN_RADIUS
 X_STEP_SIZE = 1
 Y_STEP_SIZE = 7
-N_BALLS = 500
+N_BALLS = 1000
 BALLS_ADDED_PER_TICK = 3
 TICKS_TO_FALL = 5
-INITIAL_BALL_SPREAD = 20 #Pixels
+INITIAL_BALL_SPREAD = 10 #Pixels
 X_BALLS_INIT = 12*PIN_SPACE
 
 # Check for intersection
@@ -51,11 +51,12 @@ class board_app:
 
         # Separadores de Contenedores
         self.container_bars = []
-        for i in range(1, N_BINS):
-            x_coordinate = i*(BIN_WIDTH + BIN_LINE_WIDTH)
-            y1_coordinate = CANVAS_HEIGHT
-            y2_coordinate = CANVAS_HEIGHT - BIN_LINE_HEIGHT
-            self.container_bars.append(self.canvas.create_line(x_coordinate, y1_coordinate, x_coordinate, y2_coordinate, fill="green", width=BIN_LINE_WIDTH))
+        for i in range(0, PIN_COLUMNS):
+            if i % 2:
+                x_coordinate = i*PIN_SPACE - BIN_LINE_WIDTH // 2
+                y1_coordinate = CANVAS_HEIGHT
+                y2_coordinate = CANVAS_HEIGHT - BIN_LINE_HEIGHT
+                self.container_bars.append(self.canvas.create_line(x_coordinate, y1_coordinate, x_coordinate, y2_coordinate, fill="green", width=BIN_LINE_WIDTH))
 
         # Contenedores, es una lista que contiene las pelotiras en cada bin
         self.balls_in_bins = [[] for i in range(N_BINS)]
@@ -116,38 +117,42 @@ class board_app:
 
     def get_bin_number(self, ball):
         ball_bbox = self.canvas.bbox(ball)
-        n = int(ball_bbox[0] //  (CANVAS_WIDTH / N_BINS))
+        n = int((ball_bbox[0] - PIN_SPACE - BIN_LINE_WIDTH) //  (2*PIN_SPACE + BIN_LINE_WIDTH))
         return n
     
     def get_bin_coords(self, n):
-        x = (n+1)*BIN_WIDTH + n*BIN_LINE_WIDTH
+        x = (n+1)*2*PIN_SPACE + n*BIN_LINE_WIDTH
         y = CANVAS_HEIGHT
         return x, y
     
     def place_ball_in_bin(self, nbin, ball):
         l = len(self.balls_in_bins[nbin])
+        column = l % 3
+        h = (l // 3) * 2 * BALL_RADIUS 
+        X, Y = self.get_bin_coords(nbin)
         if l == 0:
-            X, Y = self.get_bin_coords(nbin)
             self.canvas.coords(
                         ball,
                         X - 2*BALL_RADIUS, Y - 2*BALL_RADIUS,
                         X, Y
                     )
-        elif l % 2:
-            last_ball_bbox = self.canvas.bbox(self.balls_in_bins[nbin][-1])
-            X1, Y1 = last_ball_bbox[0], last_ball_bbox[1]
+        elif column == 0:
             self.canvas.coords(
                         ball,
-                        X1 - 2*BALL_RADIUS, Y1,
-                        X1, Y1 + 2*BALL_RADIUS
+                        X - 2*BALL_RADIUS, Y - h - 2*BALL_RADIUS,
+                        X, Y - h
                     )
-        else:
-            last_ball_bbox = self.canvas.bbox(self.balls_in_bins[nbin][-1])
-            X2, Y1 = last_ball_bbox[2], last_ball_bbox[1]
+        elif column == 1:
             self.canvas.coords(
                         ball,
-                        X2, Y1-2*BALL_RADIUS,
-                        X2 + 2*BALL_RADIUS, Y1
+                        X - 4*BALL_RADIUS, Y - h - 2*BALL_RADIUS,
+                        X - 2*BALL_RADIUS, Y - h
+                    )
+        elif column == 2:
+            self.canvas.coords(
+                        ball,
+                        X - 6*BALL_RADIUS, Y - h - 2*BALL_RADIUS,
+                        X - 4*BALL_RADIUS, Y - h
                     )
         self.balls_in_bins[nbin].append(ball)
 
