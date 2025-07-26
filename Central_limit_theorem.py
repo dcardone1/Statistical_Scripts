@@ -5,7 +5,7 @@ import random
 CANVAS_WIDTH = 600
 CANVAS_HEIGHT = 600
 BALL_RADIUS = 3
-UPDATE_DELAY = 50  # en milisegundos
+UPDATE_DELAY = 100  # en milisegundos
 PIN_Y_COORDINATE = 100
 BIN_LINE_WIDTH = 2 # Multiplos de 2
 BIN_LINE_HEIGHT = 250
@@ -18,9 +18,9 @@ N_BINS = PIN_COLUMNS
 TOP_HEIGHT = PIN_Y_COORDINATE - PIN_RADIUS
 X_STEP_SIZE = 1
 Y_STEP_SIZE = 7
-N_BALLS = 1000
-BALLS_ADDED_PER_TICK = 3
-TICKS_TO_FALL = 5
+N_BALLS = 900
+BALLS_ADDED_PER_TICK = 2
+TICKS_TO_FALL = 10
 INITIAL_BALL_SPREAD = 10 #Pixels
 X_BALLS_INIT = 12*PIN_SPACE
 
@@ -127,8 +127,8 @@ class board_app:
     
     def place_ball_in_bin(self, nbin, ball):
         l = len(self.balls_in_bins[nbin])
-        column = l % 3
-        h = (l // 3) * 2 * BALL_RADIUS 
+        column = l % 5
+        h = (l // 5) * 2 * BALL_RADIUS 
         X, Y = self.get_bin_coords(nbin)
         if l == 0:
             self.canvas.coords(
@@ -153,6 +153,18 @@ class board_app:
                         ball,
                         X - 6*BALL_RADIUS, Y - h - 2*BALL_RADIUS,
                         X - 4*BALL_RADIUS, Y - h
+                    )
+        elif column == 3:
+            self.canvas.coords(
+                        ball,
+                        X - 8*BALL_RADIUS, Y - h - 2*BALL_RADIUS,
+                        X - 6*BALL_RADIUS, Y - h
+                    )
+        elif column == 4:
+            self.canvas.coords(
+                        ball,
+                        X - 10*BALL_RADIUS, Y - h - 2*BALL_RADIUS,
+                        X - 8*BALL_RADIUS, Y - h
                     )
         self.balls_in_bins[nbin].append(ball)
 
@@ -198,8 +210,10 @@ class board_app:
                 if BALL_RADIUS <= new_x <= CANVAS_WIDTH - BALL_RADIUS:
                     present_x = new_x
         
-                # Mover la pelotita si no ha colisionado con otra pelotita o si se encuentra en la parte superior o en los pines
-                if present_y < CANVAS_HEIGHT - BIN_LINE_HEIGHT:
+                # Mover la pelotita si no ha colisionado con otra pelotita o si se encuentra en la parte superior de su compartimento
+                nbin = self.get_bin_number(ball)
+                bin_height = (len(self.balls_in_bins[nbin]) // 5)*2*BALL_RADIUS + 2*BALL_RADIUS
+                if present_y < CANVAS_HEIGHT - bin_height:
                     self.canvas.coords(
                         ball,
                         present_x - BALL_RADIUS, present_y - BALL_RADIUS,
