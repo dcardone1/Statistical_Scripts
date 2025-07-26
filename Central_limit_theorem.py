@@ -5,7 +5,7 @@ import random
 CANVAS_WIDTH = 600
 CANVAS_HEIGHT = 600
 BALL_RADIUS = 3
-UPDATE_DELAY = 10  # en milisegundos
+UPDATE_DELAY = 50  # en milisegundos
 PIN_Y_COORDINATE = 100
 N_BINS = 20
 BIN_LINE_WIDTH = 2
@@ -19,7 +19,7 @@ TOP_HEIGHT = PIN_Y_COORDINATE - PIN_RADIUS
 X_STEP_SIZE = 1
 Y_STEP_SIZE = 7
 N_BALLS = 500
-BALLS_ADDED_PER_TICK = 1
+BALLS_ADDED_PER_TICK = 3
 TICKS_TO_FALL = 5
 INITIAL_BALL_SPREAD = 20 #Pixels
 X_BALLS_INIT = 12*PIN_SPACE
@@ -39,10 +39,8 @@ def check_collision(ball, bbox_list, canvas):
         if test:
             return bbox_from_list
     return False
+
         
-
-
-
 class board_app:
     def __init__(self, root):
         self.root = root
@@ -51,14 +49,17 @@ class board_app:
         self.canvas = tk.Canvas(root, width=CANVAS_WIDTH, height=CANVAS_HEIGHT, bg="black")
         self.canvas.pack()
 
-        # Contenedores
+        # Separadores de Contenedores
         self.container_bars = []
         for i in range(1, N_BINS):
             x_coordinate = i*(BIN_WIDTH + BIN_LINE_WIDTH)
             y1_coordinate = CANVAS_HEIGHT
             y2_coordinate = CANVAS_HEIGHT - BIN_LINE_HEIGHT
             self.container_bars.append(self.canvas.create_line(x_coordinate, y1_coordinate, x_coordinate, y2_coordinate, fill="green", width=BIN_LINE_WIDTH))
-            
+
+        # Contenedores, es una lista que contiene las pelotiras en cada bin
+        self.balls_in_bins = [[] for i in range(N_BINS)]
+    
         # Pines
         self.pines = []
         for j in range(PIN_ROWS):
@@ -113,6 +114,46 @@ class board_app:
         self.after_id = None
         self.update_position()
 
+    def get_bin_number(self, ball):
+        ball_bbox = self.canvas.bbox(ball)
+        n = int(ball_bbox[0] //  (CANVAS_WIDTH / N_BINS))
+        return n
+    
+    def get_bin_coords(self, n):
+        x = (n+1)*BIN_WIDTH + n*BIN_LINE_WIDTH
+        y = CANVAS_HEIGHT
+        return x, y
+    
+    def place_ball_in_bin(self, nbin, ball):
+        l = len(self.balls_in_bins[nbin])
+        if l == 0:
+            X, Y = self.get_bin_coords(nbin)
+            self.canvas.coords(
+                        ball,
+                        X - 2*BALL_RADIUS, Y - 2*BALL_RADIUS,
+                        X, Y
+                    )
+        elif l % 2:
+            last_ball_bbox = self.canvas.bbox(self.balls_in_bins[nbin][-1])
+            X1, Y1 = last_ball_bbox[0], last_ball_bbox[1]
+            self.canvas.coords(
+                        ball,
+                        X1 - 2*BALL_RADIUS, Y1,
+                        X1, Y1 + 2*BALL_RADIUS
+                    )
+        else:
+            last_ball_bbox = self.canvas.bbox(self.balls_in_bins[nbin][-1])
+            X2, Y1 = last_ball_bbox[2], last_ball_bbox[1]
+            self.canvas.coords(
+                        ball,
+                        X2, Y1-2*BALL_RADIUS,
+                        X2 + 2*BALL_RADIUS, Y1
+                    )
+        self.balls_in_bins[nbin].append(ball)
+
+    
+
+
     def update_position(self):
 
         for ball in self.balls[:self.fall_index]:
@@ -143,32 +184,28 @@ class board_app:
                 colided = check_collision(ball, self.container_bars, self.canvas)        
                 if colided:
                     if self.canvas.bbox(ball)[2] > colided[0]:
-                        dx = random.choice([2*BALL_RADIUS, 5*BALL_RADIUS])
-                        new_x = colided[0] - dx
+                        new_x = colided[0] - BIN_LINE_WIDTH
                     elif self.canvas.bbox(ball)[0] < colided[2]:
-                        dx = random.choice([2*BALL_RADIUS, 5*BALL_RADIUS])
-                        new_x = colided[2] + dx
+                        new_x = colided[2] + BIN_LINE_WIDTH
 
 
                 # Se mueve en x solo si no ha llegado al límite del canvas
                 if BALL_RADIUS <= new_x <= CANVAS_WIDTH - BALL_RADIUS:
                     present_x = new_x
-            
-                
-                
-                other_balls = self.balls[: self.fall_index]
-                other_balls.pop(other_balls.index(ball))
-                
-                colided  = check_collision(ball, other_balls, self.canvas)
-                
+        
                 # Mover la pelotita si no ha colisionado con otra pelotita o si se encuentra en la parte superior o en los pines
-                if present_y < CANVAS_HEIGHT - BIN_LINE_HEIGHT or not colided:
+                if present_y < CANVAS_HEIGHT - BIN_LINE_HEIGHT:
                     self.canvas.coords(
                         ball,
                         present_x - BALL_RADIUS, present_y - BALL_RADIUS,
                         present_x + BALL_RADIUS, present_y + BALL_RADIUS
                     )
+                else:
+                    n = self.get_bin_number(ball)
+                    self.place_ball_in_bin(n, ball)
+                    self.balls.pop(self.balls.index(ball))
 
+                    
         self.fall_sequence += 1
         if self.fall_sequence >= TICKS_TO_FALL:
             self.fall_sequence = 0
@@ -215,6 +252,13 @@ class board_app:
                 fill="white"
             ))
         self.fall_index = 1
+
+        # Se vacian los contenedores.
+        for bin in self.balls_in_bins:
+            for ball in bin:
+                self.canvas.delete(ball)
+        
+        self.balls_in_bins = [[] for i in range(N_BINS) ]
 
         # Reiniciar
         self.running = True
