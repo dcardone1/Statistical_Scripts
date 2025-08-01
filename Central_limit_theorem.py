@@ -1,5 +1,7 @@
 import tkinter as tk
 import random
+from scipy.stats import norm
+import numpy as np
 
 # Parámetros de la simulación
 CANVAS_WIDTH = 600
@@ -14,15 +16,15 @@ PIN_SPACE = 24
 PIN_ROWS = 5
 PIN_COLUMNS = 25
 N_BINS = PIN_COLUMNS
-#BIN_WIDTH = (CANVAS_WIDTH - (N_BINS-1)*BIN_LINE_WIDTH) // N_BINS
 TOP_HEIGHT = PIN_Y_COORDINATE - PIN_RADIUS
-#X_STEP_SIZE = 1
 Y_STEP_SIZE = 7
 N_BALLS = 900
 BALLS_ADDED_PER_TICK = 2
 TICKS_TO_FALL = 10
-INITIAL_BALL_SPREAD = 10 #Pixels
+INITIAL_BALL_SPREAD = 5 #Pixels
 X_BALLS_INIT = 12*PIN_SPACE
+# to adjusto de bell curve amplitude
+BELL_AMPLITUDE = 50000
 
 # Check for intersection
 def check_collision(ball, bbox_list, canvas):
@@ -81,6 +83,21 @@ class board_app:
         self.button_frame = tk.Frame(root)
         self.button_frame.pack(pady=10)
 
+        self.info_frame = tk.Frame(root)
+        self.info_frame.pack(pady=10)
+
+        # Normal Bell shape
+        # See the file Galton board model in this repository to check the values for standar deviation and mean
+        # Std = delta_x * sqrt(n) = (2*PIN_RADIUS)*(2*PIN_ROWS)**0.5)
+        # Where 2*PIN_RADIUS is the x displacement in each kick and 
+        x = [i for i in range(600) if i%2]
+        y = list(map(lambda j: norm.pdf(j, X_BALLS_INIT, 2*PIN_RADIUS*(2*PIN_ROWS)**0.5), x))
+        points = []
+        for k in zip(x, y):
+            points.append(k[0])
+            points.append(CANVAS_HEIGHT - k[1]*BELL_AMPLITUDE)
+        self.canvas.create_line(points, fill="yellow", width=3, smooth=True)
+
         # Botón Reiniciar
         self.restart_button = tk.Button(self.button_frame, text="Reiniciar", command=self.restart_simulation)
         self.restart_button.grid(row=0, column=0, padx=5)
@@ -96,6 +113,20 @@ class board_app:
         # Botón para desacelerar
         self.speed_button = tk.Button(self.button_frame, text="Slower", command=self.slower)
         self.speed_button.grid(row=0, column=3, padx=5)
+
+        # Texto para indicar la desviación estandar
+        self.label_std = tk.Label(self.info_frame, text=f'Pop. mean: {X_BALLS_INIT}', font=("Arial", 10))
+        self.label_std.grid(row=1, column=0, padx=5)
+        # Texto para indicar el promedio
+        self.info_mean = tk.Label(self.info_frame, text=f'Pop. std: {round(2*PIN_RADIUS*(2*PIN_ROWS)**0.5, 2)}', font=("Arial", 10))
+        self.info_mean.grid(row=1, column=1, padx=5)
+
+        # Texto para indicar la desviación estandar
+        self.info_smean = tk.Label(self.info_frame, text="Sample mean: ", font=("Arial", 10))
+        self.info_smean.grid(row=1, column=2, padx=5)
+        # Texto para indicar el promedio
+        self.info_sstd = tk.Label(self.info_frame, text="Sample std: ", font=("Arial", 10))
+        self.info_sstd.grid(row=1, column=3, padx=5)
 
         # Posición inicial en el centro
         self.x = X_BALLS_INIT
@@ -125,6 +156,9 @@ class board_app:
         self.running = True
         self.after_id = None
         self.update_position()
+
+        # Acumulador para calcular la desviación estandar
+        self.x_samples = []
 
     def get_bin_number(self, ball):
         ball_bbox = self.canvas.bbox(ball)
@@ -228,9 +262,13 @@ class board_app:
                         present_x + BALL_RADIUS, present_y + BALL_RADIUS
                     )
                 else:
+                    self.x_samples.append(present_x)
                     n = self.get_bin_number(ball)
                     self.place_ball_in_bin(n, ball)
                     self.balls.pop(self.balls.index(ball))
+                    self.info_sstd.config(text=f'Sample std: {round(np.std(self.x_samples, ddof=1), 2)}')
+                    self.info_smean.config(text=f'Sample mean: {round(np.mean(self.x_samples), 2)}')
+
 
                     
         self.fall_sequence += 1
@@ -266,6 +304,11 @@ class board_app:
 
         # Reinicia el delay
         self.delay = UPDATE_DELAY
+
+        # Resetear los labels
+        self.info_sstd.config(text=f'Sample std: ')
+        self.info_smean.config(text=f'Sample mean: ')
+
 
         # Borramos las pelotas
         for ball in self.balls:
